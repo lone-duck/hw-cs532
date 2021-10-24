@@ -14,15 +14,21 @@ def likelihood_weighting_with_report(ast, L):
     M = torch.max(log_weights)
     normalized_weights = torch.exp(log_weights - M)/torch.sum(torch.exp(log_weights - M))
     
-    if returns.dim() > 1:
+    if returns.dim() == 2:
         weighted_returns = normalized_weights.unsqueeze(dim=1)*returns
-        expectations = torch.sum(weighted_returns, dim=0)
+        expectation = torch.sum(weighted_returns, dim=0)
+        var00 = torch.sum(normalized_weights*returns[:,0]**2) - expectation[0]**2
+        var00 = torch.sum(normalized_weights*returns[:,1]**2) - expectation[1]**2
+        var01 = torch.sum(normalized_weights*returns[:,0]*returns[:,1]) - expectation[0]*expectation[1]
+        variance = torch.tensor([[var00, var01],[var01, var11]])
     else:
         weighted_returns = normalized_weights*returns
-        expectations = torch.sum(weighted_returns)
+        expectation = torch.sum(weighted_returns)
+        variance = torch.sum(normalized_weights*returns**2) - expectation**2
+
     
-    
-    print(expectations)
+    print(expectation)
+    print(variance)
 
 def likelihood_weighting_and_save(ast, L, filename):
     result = likelihood_weighting(ast, L)
