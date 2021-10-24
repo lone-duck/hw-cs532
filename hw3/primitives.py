@@ -43,6 +43,8 @@ def eval_env():
         '>=': torch.ge,
         '<=': torch.le, 
         '=': torch.eq,
+        'and': torch.logical_and,
+        'or': torch.logical_or,
         'sqrt': torch.sqrt,
         'exp': torch.exp,
         'mat-tanh': torch.tanh,
@@ -65,7 +67,10 @@ def eval_env():
         'exponential': torch.distributions.exponential.Exponential,
         'uniform': torch.distributions.uniform.Uniform,
         'bernoulli': torch.distributions.bernoulli.Bernoulli,
-        'discrete': lambda *x: torch.distributions.categorical.Categorical(x[0]) 
+        'flip': torch.distributions.bernoulli.Bernoulli,
+        'discrete': lambda *x: torch.distributions.categorical.Categorical(x[0]),
+        'dirichlet': lambda *x: torch.distributions.dirichlet.Dirichlet(x[0]), 
+        'gamma': torch.distributions.gamma.Gamma 
         })
 
 
