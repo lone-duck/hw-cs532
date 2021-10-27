@@ -30,8 +30,8 @@ def mat_transpose(args):
 def mat_repmat(t, i1, i2):
     return t.repeat(i1.long().item(), i2.long().item())
 
-def make_dirichlet(x):
-    return torch.distributions.Normal(x, 0.1)
+def make_dirac(x):
+    return torch.distributions.Normal(x, 0.01)
 
 # inspired by https://norvig.com/lispy.html
 def eval_env():
@@ -74,7 +74,7 @@ def eval_env():
         'discrete': lambda *x: torch.distributions.categorical.Categorical(x[0]),
         'dirichlet': lambda *x: torch.distributions.dirichlet.Dirichlet(x[0]), 
         'gamma': torch.distributions.gamma.Gamma,
-        'dirac': lambda x: make_dirichlet(x) 
+        'dirac': lambda x: make_dirac(x) 
         })
 
 
