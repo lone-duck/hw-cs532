@@ -41,8 +41,7 @@ def sample_from_prior(graph):
 
 def joint_log_likelihood(X, graph):
     P = graph[1]['P']
-    Y = {k: torch.tensor(v).float() for k, v in graph[1]['Y'].items()}
-    V = {**X, **Y}
+    V = X
     Vkeys = list(V.keys())
     jll = 0
 
@@ -63,15 +62,23 @@ def gibbs_sampling_p5(graph, S, X0=None, verbose=False, return_samples=False):
     jlls = [None]*S
     ret_vals = [None]*S
 
+    # sample from proposal
     if X0 is None:
         X0 = sample_from_prior(graph)
+        P = graph[1]['P']
+        Xkeys = list(X0.keys())
+        task, expr = P[Xkeys[0]][0], P[Xkeys[0]][1]
+        assert task == "sample*", "Found observed variable in X???"
+        q0, _ = deterministic_evaluate(expr, X0)
+        X0[Xkeys[0]] = q0.sample()
+        X0[Xkeys[1]] = 7 - X0[Xkeys[0]]
 
     Xprev = X0
 
     for s in range(S):
         if verbose:
             print(s)
-        X, ret_vals[s] = gibbs_step(Xprev, graph, s)
+        X, ret_vals[s] = block_gibbs_step(Xprev, graph, s)
         if return_samples:
             samples[s] = X
         jlls[s] = joint_log_likelihood(X, graph)
@@ -83,7 +90,7 @@ def gibbs_sampling_p5(graph, S, X0=None, verbose=False, return_samples=False):
         return ret_vals, jlls
 
 
-def gibbs_step(X, graph, s):
+def block_gibbs_step(X, graph, s):
 
     P = graph[1]['P']
     unif = torch.distributions.Uniform(0,1)
@@ -97,48 +104,29 @@ def gibbs_step(X, graph, s):
         sampled = 'sample2'
         deterministic = 'sample1'
 
-
-    for x in Xkeys:
-        task, expr = P[x][0], P[x][1]
-        assert task == "sample*", "Found observed variable in X???"
-        q, _ = deterministic_evaluate(expr, X)
-        Xprime = X.copy()
-        if x == sampled:
-            Xprime[x] = q.sample()
-        elif x == deterministic:
-            Xprime[x] = 7 - Xprime['sample1']
-        else:
-            assert False, "found x == {}".format(x)
-        alpha = accept(x, Xprime, X, graph)
-        u = unif.sample()
-        if u < alpha:
-            X = Xprime
+    # sample a new X from block proposal
+    expr = P[sampled][1]
+    q_sampled, _ =  deterministic_evaluate(expr, X)
+    Xprime = X.copy()
+    Xprime[sampled] = q_sampled.sample()
+    Xprime[deterministic] = 7 - Xprime[sampled]
+    # compute alpha
+    alpha = accept(deterministic, Xprime, X, graph)
+    u = unif.sample()
+    if u < alpha:
+        X = Xprime
 
     return X, deterministic_evaluate(ret_vals, X)[0]
 
 
 def accept(x, Xprime, X, graph):
+
     P = graph[1]['P']
-    Y = {k: torch.tensor(v).float() for k, v in graph[1]['Y'].items()}
-    A = graph[1]['A']
     log_alpha = 0.0
 
-    task, expr = P[x][0], P[x][1]
-    assert task == "sample*", "Found observed variable in X???"
-    q, _ = deterministic_evaluate(expr, X)
-    qprime, _ = deterministic_evaluate(expr, Xprime)
-    log_alpha += (qprime.log_prob(X[x]) - q.log_prob(Xprime[x]))
-    
-    V_x = A[x] + [x]
-    XUY = {**X}
-    XprimeUY = {**Xprime}
-    for v in V_x:
-        if v != 'observe3':
-            task, expr = P[v][0], P[v][1]
-            p_v, _ = deterministic_evaluate(expr, XprimeUY)
-            log_alpha += p_v.log_prob(XprimeUY[v])
-            p_v, _ = deterministic_evaluate(expr, XUY)
-            log_alpha -= p_v.log_prob(XUY[v])
+    expr = P[x][1]
+    p, _ = deterministic_evaluate(expr, X)
+    log_alpha += (p.log_prob(Xprime[x]) - p.log_prob(X[x]))
 
     return torch.exp(log_alpha)
 
