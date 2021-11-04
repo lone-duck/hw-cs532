@@ -1,1 +1,7 @@
 .DS_*
+hw4/.ipynb_checkpoints/
+hw4/__pycache__/
+hw4/bbvi_old.py
+hw4/dev.ipynb
+hw4/try-running.ipynb
+hw4/wandb/
