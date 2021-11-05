@@ -7,6 +7,7 @@ import datetime
 import wandb
 import time
 import numpy as np
+import distributions
 
 ENV = eval_env()
 
