@@ -6,6 +6,7 @@ from graph_utils import topological_sort
 import datetime
 import wandb
 import time
+import numpy as np
 
 ENV = eval_env()
 
@@ -78,7 +79,7 @@ def make_q(d):
     return q
 
 
-def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, lr=0.1):
+def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, lr=0.1, no_b=False, logging=True):
     """
     Trains BBVI proposal distributions.
     Args:
@@ -90,10 +91,14 @@ def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, 
     Returns:
         a new dictionary Q containing learned proposals
     """
+
+    best_elbo = -np.inf
+    
     if time_based:
         start = time.time()
     project_name = base_string
-    wandb.init(project=project_name, entity="lone-duck")
+    if logging:
+        wandb.init(project=project_name, entity="lone-duck")
 
     if Q is None:
         Q = init_Q(graph)
@@ -117,7 +122,6 @@ def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, 
 
     # for t iterations, or for time_T seconds
     for t in range(T):
-        print(t)
         # initiliaze lists for logW, G
         logWs = [None]*L
         Gs = [None]*L
@@ -125,17 +129,23 @@ def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, 
         for l in range(L):
             logWs[l], Gs[l] = evaluation(P, Q, Y, sorted_V)
         # compute noisy elbo gradients
-        g = elbo_gradients(logWs, Gs, L, Xkeys)
+        g = elbo_gradients(logWs, Gs, L, Xkeys, no_b)
         # compute elbo
         elbo = compute_elbo(logWs)
+        if elbo > best_elbo:
+            best_Q = Q
+            best_elbo = elbo
+            print("new best elbo:")
+            print(elbo)
         # do an update
         Q = update_Q(Q, g, t+1, lr)
-        wandb.log({"ELBO": elbo})
+        if logging:
+            wandb.log({"ELBO": elbo})
         if time_based:
             if time.time() - start > time_T:
                 break
 
-    return Q
+    return best_Q
 
 
 def update_Q(Q, g, t, lr):
@@ -157,7 +167,7 @@ def compute_elbo(logWs):
     return torch.mean(torch.stack(logWs))
 
 
-def elbo_gradients(logWs, Gs, L, Xkeys):
+def elbo_gradients(logWs, Gs, L, Xkeys, no_b):
 
     g = {}
 
@@ -177,7 +187,10 @@ def elbo_gradients(logWs, Gs, L, Xkeys):
         assert Fv.dim() < 3, "Need to ensure things work for higher dimensions"
         assert Gv.dim() < 3, "Need to ensure things work for higher dimensions"
         # compute b for this v
-        b = compute_b(Fv, Gv)
+        if no_b:
+            b = 0
+        else:
+            b = compute_b(Fv, Gv)
         g[v] = torch.sum(Fv - b*Gv, dim=0)/L
 
     return g
