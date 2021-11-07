@@ -50,6 +50,7 @@ def eval_env():
         'or': torch.logical_or,
         'sqrt': torch.sqrt,
         'exp': torch.exp,
+        'abs': torch.abs,
         'mat-tanh': torch.tanh,
         'mat-add': torch.add,
         'mat-mul': torch.matmul,
@@ -74,7 +75,8 @@ def eval_env():
         'discrete': lambda *x: torch.distributions.categorical.Categorical(x[0]),
         'dirichlet': lambda *x: torch.distributions.dirichlet.Dirichlet(x[0]), 
         'gamma': torch.distributions.gamma.Gamma,
-        'dirac': lambda x: make_dirac(x) 
+        'dirac': lambda x: make_dirac(x), 
+        'uniform-continuous': torch.distributions.uniform.Uniform 
         })
 
 

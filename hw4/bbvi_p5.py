@@ -11,7 +11,7 @@ import distributions
 
 ENV = eval_env()
 
-def init_Q(graph):
+def init_Q_p5(graph):
     """
     Initialize proposal distributions for bbvi
     Args:
@@ -49,7 +49,10 @@ def init_Q(graph):
         if task == "sample*":
             dist, _ = deterministic_evaluate(expr, l)
             l.update({v: dist.sample()})
-            q = make_q(dist)
+            if v == 'sample1':
+                q = make_q(dist)
+            else:
+                q = distributions.Gamma(torch.tensor(1.), torch.tensor(1.))
             Q.update({v: q})
 
     return Q
@@ -80,75 +83,7 @@ def make_q(d):
     return q
 
 
-def bbvi_importance_sampling(graph, Q, L):
-    """
-    Given a proposal Q, generate weighted samples.
-    Args:
-        graph: the graph representing the FOPPL program
-        Q: proposal distributions
-        L: number of samples to generate
-    Return:
-        L samples and importance weights
-    """
-
-    # set up ENV
-    fn_defs = graph[0]
-    global ENV
-    ENV = eval_env()
-    for defn in fn_defs.items():
-        f_name = defn[0]
-        f_v_is = defn[1][1]
-        f_expr = defn[1][2]
-        ENV.update({f_name: (f_v_is, f_expr)})
-
-    # get P, Y, sorted V
-    P = graph[1]['P']
-    V = graph[1]['V']
-    Y = {k: torch.tensor(v).float() for k, v in graph[1]['Y'].items()}
-    Xkeys = list(set(V) - set(Y.keys()))
-    sorted_V = topological_sort(graph[1]['A'], V)
-    ret_expr = graph[2]
-
-    returns = [None]*L
-    log_weights = [None]*L
-
-    for l in range(L):
-        returns[l], log_weights[l] = generate_sample(P, Q, Y, sorted_V, ret_expr)
-
-    return {'returns': returns, 'log_weights': log_weights}
-
-
-def generate_sample(P, Q, Y, sorted_V, ret_expr):
-    logW = 0
-    l = {}
-    for v in sorted_V:
-        task, expr = P[v][0], P[v][1]
-        if task == "sample*":
-            # get prior dist
-            d, _ = deterministic_evaluate(expr, l)
-            # get proposal
-            q = Q[v]
-            # take sample from proposal and add to l
-            c = q.sample()
-            l.update({v: c})
-            # update logW
-            logW += d.log_prob(c) - q.log_prob(c)
-        elif task == "observe*":
-            # get prior dist, add log prob of observation to logW
-            d, _ = deterministic_evaluate(expr, l)
-            c = Y[v]
-            logW += d.log_prob(c)
-
-    # TODO: generate return value
-    ret = deterministic_evaluate(ret_expr, l)[0]
-            
-    return ret, logW
-            
-
-
-
-
-def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, lr=0.1, no_b=False, logging=True):
+def bbvi_train_p5(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, lr=0.1, no_b=False, logging=True):
     """
     Trains BBVI proposal distributions.
     Args:
@@ -170,7 +105,7 @@ def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, 
         wandb.init(project=project_name, entity="lone-duck")
 
     if Q is None:
-        Q = init_Q(graph)
+        Q = init_Q_p5(graph)
 
     # set up ENV
     fn_defs = graph[0]
@@ -192,11 +127,17 @@ def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, 
     # for t iterations, or for time_T seconds
     for t in range(T):
         # initiliaze lists for logW, G
+        print(t)
         logWs = [None]*L
         Gs = [None]*L
         # "evaluate", i.e. sample from proposal and get logWs, Gs
         for l in range(L):
-            logWs[l], Gs[l] = evaluation(P, Q, Y, sorted_V)
+            logW = None
+            samples = 0
+            while logW is None:
+                samples += 1
+                logW, G = evaluation_p5(P, Q, Y, sorted_V)
+            logWs[l], Gs[l] = logW, G
         # compute noisy elbo gradients
         g = elbo_gradients(logWs, Gs, L, Xkeys, no_b)
         # compute elbo
@@ -206,6 +147,8 @@ def bbvi_train(graph, T, L, base_string, Q=None, time_based=False, time_T=3600, 
             best_elbo = elbo
             print("new best elbo:")
             print(elbo)
+            print("Q")
+            print(Q)
         # do an update
         Q = update_Q(Q, g, t+1, lr)
         if logging:
@@ -281,35 +224,58 @@ def compute_b(F, G):
     return num/den 
 
 
-def evaluation(P, Q, Y, sorted_V):
+def evaluation_p5(P, Q, Y, sorted_V):
     logW = 0
     G = {}
     l = {}
 
-    for v in sorted_V:
-        task, expr = P[v][0], P[v][1]
-        if task == "sample*":
-            # get prior dist
-            d, _ = deterministic_evaluate(expr, l)
-            # get proposal and grad-able proposal
-            q = Q[v]
-            q_with_grad = q.make_copy_with_grads()
-            # take sample from proposal and add to l
-            c = q.sample()
-            l.update({v: c})
-            # update logW
-            with torch.no_grad():
-                logW += d.log_prob(c) - q.log_prob(c)
-            # get gradient
-            log_prob_q = q_with_grad.log_prob(c)
-            log_prob_q.backward()
-            G[v] = [param.grad for param in q_with_grad.Parameters()]
-        elif task == "observe*":
-            # get prior dist, add log prob of observation to logW
-            d, _ = deterministic_evaluate(expr, l)
-            c = Y[v]
-            with torch.no_grad():
-                logW += d.log_prob(c)
+    # we know the order here... code looks less ugly just doing 
+    # things manually
+
+    # sample1 (m)
+    v = 'sample1'
+    expr = P[v][1]
+    d, _ = deterministic_evaluate(expr, l)
+    q = Q[v]
+    q_with_grad = q.make_copy_with_grads()
+    m = q.sample()
+    while torch.abs(m) < 0.01:
+        m = q.sample()
+    l.update({v: m})
+    with torch.no_grad():
+        logW += d.log_prob(m) - q.log_prob(m)
+    log_prob_q = q_with_grad.log_prob(m)
+    log_prob_q.backward()
+    G[v] = [param.grad for param in q_with_grad.Parameters()]
+
+    # sample2 (s)
+    v = 'sample2'
+    expr = P[v][1]
+    d, _ = deterministic_evaluate(expr, l)
+    q = Q[v]
+    q_with_grad = q.make_copy_with_grads()
+    s = q.sample() + 0.01
+    high = torch.abs(m)
+    number_tries = 0
+    while s > high:
+        number_tries += 1
+        if number_tries > 1000:
+            return None, None
+        s = q.sample() + 0.01
+    l.update({v: s})
+    with torch.no_grad():
+        logW += d.log_prob(s) - q.log_prob(s-0.01)
+    log_prob_q = q_with_grad.log_prob(s-0.01)
+    log_prob_q.backward()
+    G[v] = [param.grad for param in q_with_grad.Parameters()]
+
+    # observe3
+    v = 'observe3'
+    expr = P[v][1]
+    d, _ = deterministic_evaluate(expr, l)
+    c = Y[v]
+    with torch.no_grad():
+        logW += d.log_prob(c)
 
     return logW, G
 
@@ -373,6 +339,7 @@ def deterministic_evaluate(e, l, sig=None):
             c_is = [deterministic_evaluate(arg, l)[0] for arg in e[1:]]
             l_proc = dict(zip(v_is, c_is))
             return deterministic_evaluate(e0, {**l, **l_proc})
+
 
 
 
