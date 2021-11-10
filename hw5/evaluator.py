@@ -1,5 +1,4 @@
 from primitives import env as penv
-from daphne import daphne
 from tests import is_tol, run_prob_test,load_truth
 from pyrsistent import pmap,plist
 
@@ -30,7 +29,8 @@ def run_deterministic_tests():
     
     for i in range(1,14):
 
-        exp = daphne(['desugar-hoppl', '-i', '../../HW5/programs/tests/deterministic/test_{}.daphne'.format(i)])
+        with open("programs/tests/deterministic/test_{}.json".format(str(i)), 'rb') as f:
+            exp = json.load(f)
         truth = load_truth('programs/tests/deterministic/test_{}.truth'.format(i))
         ret = evaluate(exp)
         try:
@@ -42,7 +42,8 @@ def run_deterministic_tests():
         
     for i in range(1,13):
 
-        exp = daphne(['desugar-hoppl', '-i', '../../HW5/programs/tests/hoppl-deterministic/test_{}.daphne'.format(i)])
+        with open("programs/tests/hoppl-deterministic/test_{}.json".format(str(i)), 'rb') as f:
+            exp = json.load(f)
         truth = load_truth('programs/tests/hoppl-deterministic/test_{}.truth'.format(i))
         ret = evaluate(exp)
         try:
@@ -62,7 +63,8 @@ def run_probabilistic_tests():
     max_p_value = 1e-2
     
     for i in range(1,7):
-        exp = daphne(['desugar-hoppl', '-i', '../../HW5/programs/tests/probabilistic/test_{}.daphne'.format(i)])
+        with open("programs/tests/probabilistic/test_{}.json".format(str(i)), 'rb') as f:
+            exp = json.load(f)
         truth = load_truth('programs/tests/probabilistic/test_{}.truth'.format(i))
         
         stream = get_stream(exp)
@@ -84,6 +86,7 @@ if __name__ == '__main__':
 
     for i in range(1,4):
         print(i)
-        exp = daphne(['desugar-hoppl', '-i', '../../HW5/programs/{}.daphne'.format(i)])
+        with open("programs/{}.json".format(str(i)), 'rb') as f:
+            exp = json.load(f)
         print('\n\n\nSample of prior of program {}:'.format(i))
         print(evaluate(exp))        
