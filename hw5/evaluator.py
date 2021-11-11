@@ -27,7 +27,9 @@ def evaluate(e, env):
         try:
             return env.find(e)[e]
         except:
-            assert False, "Could not find " + e
+            # DEBUGGING LINE
+            print("Could not find " + e)
+            return e
     # is there another case?
     else:
         assert isinstance(e, list), "Found unexpected base case: {}".format(e)
@@ -38,11 +40,43 @@ def evaluate(e, env):
         params = args[0]
         body = args[1]
         return Procedure(params, body, copy.deepcopy(env))
+    elif op == 'if':
+        (test, conseq, alt) = args
+        test_value = evaluate(test, env)
+        expr = (conseq if test_value else alt)
+        return evaluate(expr, env)
+    elif op == 'push-address':
+        proc = evaluate(op, env)
+        alpha = evaluate(args[0], env)
+        value = args[1]
+        ret_val = proc(alpha, value)
+        # DEBUGGING LINE
+        #print(ret_val)
+        return ret_val
+    elif op == 'sample':
+        addr = evaluate(args[0], env)
+        dist = evaluate(args[1:][0], env)
+        # make sure it is a distribution object
+        assert getattr(dist, '__module__', None).split('.')[:2] == ['torch', 'distributions']
+        return dist.sample()
+    elif op == 'observe':
+        addr = evaluate(args[0], env)
+        dist = evaluate(args[1:][0], env)
+        # make sure it is a distribution object
+        assert getattr(dist, '__module__', None).split('.')[:2] == ['torch', 'distributions']
+        c = evaluate(args[1:][1], env)
+        return dist.sample()
     else:
         proc = evaluate(op, env)
         addr = args[0]
-        args = args[1:]
-        vals = [evaluate(arg, env) for arg in args]
+        if isinstance(proc, Procedure):
+            vals = [evaluate(arg, env) for arg in args]
+        else:
+            args = args[1:]
+            vals = [evaluate(arg, env) for arg in args]
+            if isinstance(proc, str):
+                print(proc)
+                print(vals)
         return proc(*vals)
 
 
@@ -100,6 +134,8 @@ def run_deterministic_tests():
         
     for i in range(1,13):
 
+        print("Starting HOPPL test {}".format(i))
+
         with open("programs/tests/hoppl-deterministic/test_{}.json".format(str(i)), 'rb') as f:
             exp = json.load(f)
         truth = load_truth('programs/tests/hoppl-deterministic/test_{}.truth'.format(i))
@@ -108,8 +144,10 @@ def run_deterministic_tests():
             assert(is_tol(ret, truth))
         except:
             raise AssertionError('return value {} is not equal to truth {} for exp {}'.format(ret,truth,exp))
+
+        print("HOPPL test {} passed".format(i))
         
-        print('Test passed')
+    print('HOPPL Tests passed')
         
     print('All deterministic tests passed')
     

@@ -56,6 +56,20 @@ def pure_hashmap_update(d, k, v):
     d2.update({k:v})
     return d2
 
+def cons(x, y):
+    assert isinstance(x, (list, tuple, torch.Tensor))
+    assert isinstance(y, (list, tuple, torch.Tensor))
+    if isinstance(x, (list, tuple)) and len(x) == 0:
+        return deepcopy(y)
+    elif x.numel() == 1 and y.numel() == 1:
+        return deepcopy(torch.tensor((y, x)))
+    elif y.numel() == 1 and x.numel() > 1:
+        return deepcopy(torch.cat((y.view(1), x)))
+    else:
+        assert False, "x: {}, y: {}".format(x, y)
+
+    
+
 
 BASE_ENV = {
             'push-address' : push_addr,
@@ -70,17 +84,31 @@ BASE_ENV = {
             '=': torch.eq,
             'sqrt': torch.sqrt,
             'exp': torch.exp,
+            'log': torch.log,
             'mat-tanh': torch.tanh,
             'mat-add': torch.add,
             'mat-mul': torch.matmul,
             'mat-repmat': mat_repmat,
-            'vector' : lambda *x: vector_list_creation(x),
+            'vector' : lambda *x: deepcopy(vector_list_creation(x)),
             'get': lambda x, y: deepcopy(x[y.long()]) if isinstance(x, torch.Tensor) else deepcopy(x[y.item() if isinstance(y, torch.Tensor) else y]),
             'put': lambda x, y, z: deepcopy(torch.cat((x[:y.long()], torch.tensor([z]), x[y.long()+1:]))) if isinstance(x, torch.Tensor) else pure_hashmap_update(x,y,z),
             'first' : lambda x: deepcopy(x[0]),
             'last' : lambda x: deepcopy(x[-1]),
             'append' : lambda x, y: deepcopy(torch.cat((x, torch.tensor([y])))),
             'hash-map': lambda *x : deepcopy(dict(zip([i.item() if isinstance(i, torch.Tensor) else i for i in x[::2]], x[1::2]))),
+            'peek' : lambda x: deepcopy(x[0]),
+            'empty?' : lambda x: len(x) == 0,
+            'rest' : deepcopy(lambda x: x[1:]),
+            'cons' : lambda x, y: cons(x, y),
+            'conj' : lambda x, y: cons(x, y),
+            'normal': torch.distributions.Normal,
+            'beta': torch.distributions.beta.Beta,
+            'exponential': torch.distributions.exponential.Exponential,
+            'uniform': torch.distributions.uniform.Uniform,
+            'uniform-continuous': torch.distributions.uniform.Uniform,
+            'bernoulli': torch.distributions.bernoulli.Bernoulli,
+            'flip': torch.distributions.bernoulli.Bernoulli,
+            'discrete': lambda *x: torch.distributions.categorical.Categorical(x[0])
             }
 
 
