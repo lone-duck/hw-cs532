@@ -68,9 +68,23 @@ def cons(x, y):
     else:
         assert False, "x: {}, y: {}".format(x, y)
 
+def conj(x, y):
+    assert isinstance(x, (list, tuple, torch.Tensor))
+    assert isinstance(y, (list, tuple, torch.Tensor))
+    if isinstance(x, (list, tuple)) and len(x) == 0:
+        return deepcopy(y)
+    elif isinstance(y, (list, tuple)) and len(y) == 0:
+        return deepcopy(x)
+    elif x.numel() == 1 and y.numel() == 1:
+        return deepcopy(torch.tensor((x, y)))
+    elif x.numel() == 1 and y.numel() > 1:
+        return deepcopy(torch.cat((x.view(1), y)))
+    elif x.numel() > 1 and y.numel() == 1:
+        return deepcopy(torch.cat((x, y.view(1))))
+    else:
+        assert False, "x: {}, y: {}".format(x, y)
+
     
-
-
 BASE_ENV = {
             'push-address' : push_addr,
             '+': torch.add,
@@ -80,7 +94,7 @@ BASE_ENV = {
             '>': torch.gt,
             '<': torch.lt,
             '>=': torch.ge,
-            '<=': torch.le, 
+            '<=': torch.le,
             '=': torch.eq,
             'sqrt': torch.sqrt,
             'exp': torch.exp,
@@ -100,7 +114,7 @@ BASE_ENV = {
             'empty?' : lambda x: len(x) == 0,
             'rest' : deepcopy(lambda x: x[1:]),
             'cons' : lambda x, y: cons(x, y),
-            'conj' : lambda x, y: cons(x, y),
+            'conj' : lambda x, y: conj(x, y),
             'normal': torch.distributions.Normal,
             'beta': torch.distributions.beta.Beta,
             'exponential': torch.distributions.exponential.Exponential,
