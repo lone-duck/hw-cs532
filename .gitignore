@@ -5,3 +5,6 @@ hw4/bbvi_old.py
 hw4/dev.ipynb
 hw4/try-running.ipynb
 hw4/wandb/
+hw5/__pycache__/
+hw5/programs/tests/deterministic/.ipynb_checkpoints/
+hw5/programs/tests/deterministic/Untitled.ipynb
