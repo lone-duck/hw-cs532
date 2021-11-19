@@ -11,3 +11,6 @@ hw5/programs/tests/deterministic/Untitled.ipynb
 hw5/programs/tests/.ipynb_checkpoints/
 hw5/programs/tests/Untitled.ipynb
 .ipynb_checkpoints/
+hw6/__pycache__/
+hw6/analysis.ipynb
+hw6/dev.ipynb

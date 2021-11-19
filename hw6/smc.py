@@ -4,11 +4,6 @@ import numpy as np
 import json
 import sys
 
-
-
-
-
-
 def run_until_observe_or_end(res):
     cont, args, sigma = res
     res = cont(*args)
@@ -21,10 +16,18 @@ def run_until_observe_or_end(res):
     res = (res, None, {'done' : True}) #wrap it back up in a tuple, that has "done" in the sigma map
     return res
 
-def resample_particles(particles, log_weights):
-    #TODO
-    return logZ, new_particles
 
+def resample_particles(particles, log_weights):
+    log_weights = torch.stack(log_weights)
+    weights = torch.exp(log_weights)
+    L = len(log_weights)
+    cat = torch.distributions.Categorical(probs=weights/torch.sum(weights))
+    new_particles = [None]*L 
+    indices = cat.sample_n(L)
+    for i, index in enumerate(indices):
+        new_particles[i] = particles[index.item()]
+    logZ = torch.log(torch.mean(weights))
+    return logZ, new_particles
 
 
 def SMC(n_particles, exp):
@@ -38,8 +41,6 @@ def SMC(n_particles, exp):
 
         res = evaluate(exp, env=None)('addr_start', output)
         logW = 0.
-
-
         particles.append(res)
         weights.append(logW)
 
@@ -59,8 +60,21 @@ def SMC(n_particles, exp):
                     if not done:
                         raise RuntimeError('Failed SMC, finished one calculation before the other')
             else:
-                pass #TODO: check particle addresses, and get weights and continuations
-
+                #observe case
+                assert 'done' not in res[2], "done found in res[2]"
+                cont, args, sigma = res
+                # check address
+                if i == 0:
+                    alpha = sigma['alpha']
+                else:
+                    assert alpha == sigma['alpha'], "Found particle at different address"
+                # update particles
+                particles[i] = res 
+                # compute weights
+                d = sigma['d']
+                c = sigma['c']
+                weights[i] = d.log_prob(c)
+                
         if not done:
             #resample and keep track of logZs
             logZn, particles = resample_particles(particles, weights)
@@ -73,7 +87,7 @@ def SMC(n_particles, exp):
 if __name__ == '__main__':
 
     for i in range(1,5):
-        with open('programs/{}.json'.format(i),'r') as f:
+        with open('asts/{}.json'.format(i),'r') as f:
             exp = json.load(f)
         n_particles = None #TODO 
         logZ, particles = SMC(n_particles, exp)

@@ -1,7 +1,6 @@
 from primitives import env as penv
 import json
 import torch
-from daphne import daphne
 from pyrsistent import pmap, plist
 import numpy as np
 from tests import is_tol, run_prob_test,load_truth
@@ -73,18 +72,20 @@ def evaluate(exp, env=None):
             d = evaluate(args[1], env=env)
             s = d.sample()
             k = evaluate(args[2], env=env)
-            sigma = {'type' : 'sample'
-                     #TODO: put any other stuff you need here
-                     }
+            sigma = {'type' : 'sample',
+                     'alpha' : alpha,
+                     'd': d,
+                     's': s}
             return k, [s], sigma
         elif op == 'observe':
             alpha = evaluate(args[0], env=env)
             d = evaluate(args[1], env=env)
             c = evaluate(args[2], env=env)
             k = evaluate(args[3], env=env)
-            sigma = {'type' : 'observe'
-                     #TODO: put any other stuff you need here
-                     }
+            sigma = {'type' : 'observe',
+                     'alpha': alpha,
+                     'd': d,
+                     'c': c}
             return k, [c], sigma
         elif op == 'if':
             cond,conseq,alt = args
@@ -133,14 +134,9 @@ def get_stream(exp):
 def run_deterministic_tests(use_cache=True, cache='programs/tests/'):
 
     for i in range(1,15):
-        if use_cache:
-            with open(cache + 'deterministic/test_{}.json'.format(i),'r') as f:
-                exp = json.load(f)
-        else:
-            exp = daphne(['desugar-hoppl-cps', '-i', '../../HW6/programs/tests/deterministic/test_{}.daphne'.format(i)])
-            with open(cache + 'deterministic/test_{}.json'.format(i),'w') as f:
-                json.dump(exp, f)
-        truth = load_truth('programs/tests/deterministic/test_{}.truth'.format(i))
+        with open('asts/tests/deterministic/test_{}.json'.format(i), 'rb') as f:
+            exp = json.load(f)
+        truth = load_truth('asts/tests/deterministic/test_{}.truth'.format(i))
         ret = sample_from_prior(exp)
         try:
             assert(is_tol(ret, truth))
@@ -151,15 +147,9 @@ def run_deterministic_tests(use_cache=True, cache='programs/tests/'):
     print('FOPPL Tests passed')
 
     for i in range(1,13):
-        if use_cache:
-            with open(cache + 'hoppl-deterministic/test_{}.json'.format(i),'r') as f:
-                exp = json.load(f)
-        else:
-            exp = daphne(['desugar-hoppl-cps', '-i', '../../HW6/programs/tests/hoppl-deterministic/test_{}.daphne'.format(i)])
-            with open(cache + 'hoppl-deterministic/test_{}.json'.format(i),'w') as f:
-                json.dump(exp, f)
-
-        truth = load_truth('programs/tests/hoppl-deterministic/test_{}.truth'.format(i))
+        with open('asts/tests/hoppl-deterministic/test_{}.json'.format(i), 'rb') as f:
+            exp = json.load(f)
+        truth = load_truth('asts/tests/hoppl-deterministic/test_{}.truth'.format(i))
         ret = sample_from_prior(exp)
 
         try:
@@ -179,13 +169,8 @@ def run_probabilistic_tests(use_cache=True, cache='programs/tests/'):
     max_p_value = 1e-2
 
     for i in [1,2,3,4,6]: #test 5 does not work, sorry. 
-        if use_cache:
-            with open(cache + 'probabilistic/test_{}.json'.format(i),'r') as f:
-                exp = json.load(f)
-        else:
-            exp = daphne(['desugar-hoppl-cps', '-i', '../../HW6/programs/tests/probabilistic/test_{}.daphne'.format(i)])
-            with open(cache + 'probabilistic/test_{}.json'.format(i),'w') as f:
-                json.dump(exp, f)
+        with open('asts/tests/probabilistic/test_{}.json'.format(i), 'rb') as f:
+            exp = json.load(f)
         truth = load_truth('programs/tests/probabilistic/test_{}.truth'.format(i))
 
         stream = get_stream(exp)
@@ -200,11 +185,11 @@ def run_probabilistic_tests(use_cache=True, cache='programs/tests/'):
 
 if __name__ == '__main__':
     # run the tests, if you wish:  
-   # run_deterministic_tests(use_cache=False)
-   # run_probabilistic_tests(use_cache=False)
+    run_deterministic_tests(use_cache=False)
+    run_probabilistic_tests(use_cache=False)
 
     #load your precompiled json's here:
-    with open('programs/{}.json'.format(4),'r') as f:
+    with open('asts/{}.json'.format(4),'r') as f:
         exp = json.load(f)
 
     #this should run a sample from the prior

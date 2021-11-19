@@ -218,6 +218,7 @@ env = {
            'last': last,
            'empty?': is_empty,
            'conj' : conj,
+           'cons' : conj,
            'peek' : peek,
 
            'push-address' : push_addr,
